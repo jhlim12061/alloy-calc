@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>탄소합금강 합금철 투입량 계산</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f3f4f6;
+        }
+        /* 테이블 헤더 스타일 */
+        .th-custom {
+            background-color: #e5e7eb;
+            color: #374151;
+            font-weight: 600;
+            text-align: center;
+            border: 1px solid #d1d5db;
+        }
+        /* 입력 필드 공통 스타일 */
+        .input-custom {
+            width: 100%;
+            text-align: center;
+            padding: 4px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            transition: border-color 0.2s;
+        }
+        .input-custom:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+        /* 읽기 전용 필드 스타일 */
+        .input-readonly {
+            background-color: #f9fafb;
+            color: #6b7280;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- 헤더 -->
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-800 border-b pb-4 mb-4">
+                <i class="fas fa-calculator text-blue-600 mr-2"></i>탄소합금강 합금철 투입량 계산 시뮬레이터
+            </h1>
+            
+            <!-- 용강량 입력 -->
+            <div class="flex items-center space-x-4">
+                <label class="font-bold text-gray-700">용강량 (kg):</label>
+                <input type="text" id="moltenSteel" value="100,000" oninput="formatMoltenSteel(this)" class="input-custom w-40 text-right font-bold text-blue-600 text-lg">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- 왼쪽: 메인 계산 테이블 (2/3 차지) -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-gray-700">투입량 계산</h2>
+                    <button onclick="calculate()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow transition duration-200 font-bold">
+                        <i class="fas fa-play mr-2"></i>투입량 계산
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="th-custom p-2 w-16">성분</th>
+                                <th class="th-custom p-2">현재 성분 함량(%)</th>
+                                <th class="th-custom p-2">목표(%)</th>
+                                <th class="th-custom p-2">합금철 종류</th>
+                                <th class="th-custom p-2 w-20">회수율(%)</th>
+                                <th class="th-custom p-2 bg-blue-50 text-blue-800">계산값(kg)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calculationTableBody">
+                            <!-- 자바스크립트로 행이 생성됩니다 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 합금철 품위 테이블 (1/3 차지) -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 h-fit">
+                <h2 class="text-lg font-bold text-gray-700 mb-4">합금철 품위 Table (설정)</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="th-custom p-2">합금철 명</th>
+                                <th class="th-custom p-2">품위(%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gradeTableBody">
+                            <!-- 자바스크립트로 행이 생성됩니다 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 text-xs text-gray-500 bg-gray-50 p-3 rounded">
+                    <p class="mb-1"><i class="fas fa-info-circle mr-1"></i> <strong>계산식 안내:</strong></p>
+                    <p>((목표% - 현재%) ÷ 100 × 용강량 ÷ (품위 ÷ 100)) ÷ (회수율 ÷ 100)</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // 1. 기본 데이터 정의
+        const elements = ['Si', 'Mn', 'Ni', 'Cr', 'Mo', 'V', 'Ti', 'B', 'Nb'];
+        
+        // 각 원소별 선택 가능한 합금철 목록
+        const alloyOptions = {
+            'Si': ['Fe-Si', 'Me-Si'],
+            'Mn': ['Fe-Mn', 'Me-Mn'],
+            'Ni': ['Fe-Ni', 'Me-Ni'],
+            'Cr': ['Fe-Cr(H)', 'Fe-Cr(L)'],
+            'Mo': ['Fe-Mo'],
+            'V':  ['Fe-V'],
+            'Ti': ['Fe-Ti'],
+            'B':  ['Fe-B'],
+            'Nb': ['Fe-Nb']
+        };
+
+        // 합금철 초기 품위 데이터 (PPT 기준)
+        const initialGrades = {
+            'Fe-Si': 75,
+            'Me-Si': 99.2,
+            'Fe-Mn': 75,
+            'Me-Mn': 99.9,
+            'Fe-Ni': 25,
+            'Me-Ni': 99.9,
+            'Fe-Cr(H)': 70,
+            'Fe-Cr(L)': 70,
+            'Fe-Mo': 63,
+            'Fe-V': 80,
+            'Fe-Ti': 70,
+            'Fe-B': 18,
+            'Fe-Nb': 68
+        };
+
+        // 현재 설정된 품위 값을 저장할 객체
+        let currentGrades = { ...initialGrades };
+
+        // 2. 초기화 함수
+        window.onload = function() {
+            renderGradeTable();
+            renderCalculationTable();
+        };
+
+        // 용강량 입력 시 천단위 콤마 자동 적용
+        function formatMoltenSteel(input) {
+            // 숫자만 남기고 제거
+            const value = input.value.replace(/[^0-9]/g, '');
+            
+            if (value === '') {
+                input.value = '';
+                return;
+            }
+            
+            // 천단위 콤마 적용
+            input.value = Number(value).toLocaleString();
+        }
+
+        // 3. 합금철 품위 테이블 렌더링
+        function renderGradeTable() {
+            const tbody = document.getElementById('gradeTableBody');
+            tbody.innerHTML = '';
+            
+            // 합금철 이름을 고정된 순서로 표시하기 위한 배열
+            const alloyOrder = [
+                'Fe-Si', 'Me-Si', 'Fe-Mn', 'Me-Mn', 'Fe-Ni', 'Me-Ni', 
+                'Fe-Cr(H)', 'Fe-Cr(L)', 'Fe-Mo', 'Fe-V', 'Fe-Ti', 'Fe-B', 'Fe-Nb'
+            ];
+
+            alloyOrder.forEach(alloy => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-200 hover:bg-gray-50";
+                tr.innerHTML = `
+                    <td class="p-2 border border-gray-200 font-medium text-center bg-gray-50">${alloy}</td>
+                    <td class="p-2 border border-gray-200">
+                        <input type="number" step="0.1" 
+                               value="${currentGrades[alloy]}" 
+                               onchange="updateGrade('${alloy}', this.value)"
+                               class="input-custom w-full">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 품위 값 업데이트 핸들러
+        function updateGrade(alloy, value) {
+            currentGrades[alloy] = parseFloat(value) || 0;
+            // 품위가 바뀌면 계산을 다시 할 수도 있지만, 사용자가 버튼 누를 때 계산하도록 둠.
+        }
+
+        // 4. 메인 계산 테이블 렌더링
+        function renderCalculationTable() {
+            const tbody = document.getElementById('calculationTableBody');
+            tbody.innerHTML = '';
+
+            elements.forEach(el => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-200 hover:bg-gray-50";
+                
+                // 합금철 드롭다운 옵션 생성
+                let optionsHtml = '';
+                alloyOptions[el].forEach(alloy => {
+                    optionsHtml += `<option value="${alloy}">${alloy}</option>`;
+                });
+
+                tr.innerHTML = `
+                    <td class="p-2 border border-gray-200 font-bold text-center bg-gray-50">${el}</td>
+                    <td class="p-2 border border-gray-200">
+                        <input type="number" step="0.001" placeholder="" class="input-custom current-content" data-element="${el}">
+                    </td>
+                    <td class="p-2 border border-gray-200">
+                        <input type="number" step="0.001" placeholder="" class="input-custom target-content" data-element="${el}">
+                    </td>
+                    <td class="p-2 border border-gray-200">
+                        <select class="input-custom alloy-select cursor-pointer" id="alloy-select-${el}" onchange="calculate()">
+                            ${optionsHtml}
+                        </select>
+                    </td>
+                    <td class="p-2 border border-gray-200">
+                        <input type="number" step="1" value="100" class="input-custom recovery-rate" data-element="${el}">
+                    </td>
+                    <td class="p-2 border border-gray-200">
+                        <input type="text" readonly class="input-custom input-readonly result-value font-bold text-blue-700" id="result-${el}" value="-">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 5. 계산 로직 수행 함수
+        function calculate() {
+            // 용강량 가져오기 (콤마 제거 후 파싱)
+            const moltenSteelInput = document.getElementById('moltenSteel').value.replace(/,/g, '');
+            const moltenSteel = parseFloat(moltenSteelInput) || 0;
+
+            elements.forEach(el => {
+                // DOM 요소 찾기
+                const currentInput = document.querySelector(`.current-content[data-element="${el}"]`);
+                const targetInput = document.querySelector(`.target-content[data-element="${el}"]`);
+                const alloySelect = document.querySelector(`#alloy-select-${el}`);
+                const recoveryInput = document.querySelector(`.recovery-rate[data-element="${el}"]`);
+                const resultOutput = document.getElementById(`result-${el}`);
+
+                // 값 파싱
+                const currentVal = currentInput.value === '' ? 0 : parseFloat(currentInput.value);
+                const targetVal = targetInput.value === '' ? 0 : parseFloat(targetInput.value);
+                
+                // 입력값이 없으면(빈칸) 계산하지 않음 (또는 0으로 처리)
+                if (currentInput.value === '' || targetInput.value === '') {
+                    resultOutput.value = '-';
+                    return; // 다음 원소로 넘어감
+                }
+
+                const selectedAlloy = alloySelect.value;
+                const recoveryRate = parseFloat(recoveryInput.value) || 0;
+                
+                // 선택된 합금철의 현재 품위 가져오기
+                const grade = currentGrades[selectedAlloy] || 0;
+
+                // 계산식 적용
+                // 식: ((목표(%) - 현재 성분 함량(%))/100 * 용강량(kg) / (합금철 품위(%)/100)) / (회수율(%)/100)
+                
+                let result = 0;
+                const diff = targetVal - currentVal;
+
+                // 목표가 현재보다 작거나 같으면 투입할 필요 없음 (음수 방지)
+                if (diff <= 0) {
+                    result = 0;
+                } else if (recoveryRate === 0 || grade === 0) {
+                    // 회수율이나 품위가 0이면 계산 불가 (0으로 나누기 방지)
+                    result = 0; 
+                } else {
+                    // 사용자 요청 공식 수정 반영: 품위를 나눔
+                    result = ((diff / 100) * moltenSteel / (grade / 100)) / (recoveryRate / 100);
+                }
+
+                // 결과 표시 (소수점 1자리까지, 필요시 조정 가능)
+                resultOutput.value = result.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+            });
+        }
+    </script>
+</body>
+</html>
